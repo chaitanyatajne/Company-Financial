@@ -163,7 +163,7 @@ if ticker_symbol:
             stock_url = f"https://stockanalysis.com/quote/{ticker_symbol}/financials/?p=quarterly"
         else:
             stock_url = f"https://stockanalysis.com/stocks/{ticker_symbol}/financials/?p=quarterly"
-    elif option == "NASDAQ":
+    elif option == "NASDAQ/NYSE":
         ticker_symbol=ticker_symbol.lower()
         stock_url = f"https://stockanalysis.com/stocks/{ticker_symbol}/financials/?p=quarterly"
 

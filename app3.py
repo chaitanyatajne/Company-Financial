@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import json
 import pandas as pd
 import logging
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -96,47 +97,57 @@ def convert_to_dataframe(stock_json):
         return None
 
 
-def processed_dataframe(stock_json):
-    """Processes stock data into a structured Pandas DataFrame."""
+def processed_dataframe(df):
+    """
+    Processes the input data through multiple transformations:
+    1. Converts the input into a DataFrame.
+    2. Sets the first row as column headers and removes it from the data.
+    3. Selects required columns (Fiscal Quarter, Period Ending, Revenue, Net Income).
+    4. Extracts Year and Quarter from the Fiscal Quarter column.
+    5. Cleans and processes the Period Ending column.
+    6. Converts the Period Ending date format to 'YYYY-MM-DD'.
+    7. Returns the final processed DataFrame.
+    """
     try:
-        stock_info_df = convert_to_dataframe(stock_json)
-        if stock_info_df is None or stock_info_df.empty:
-            raise ValueError("⚠️ DataFrame is empty or invalid.")
-        
+        # Convert input to DataFrame and set headers
+        stock_info_df = convert_to_dataframe(df)
         stock_info_df.columns = stock_info_df.iloc[0]
-        stock_info_df = stock_info_df[1:].reset_index(drop=True)
-
-        required_columns = ['Fiscal Quarter', 'Period Ending', 'Revenue', 'Net Income']
-        missing_cols = [col for col in required_columns if col not in stock_info_df.columns]
-        if missing_cols:
-            raise ValueError(f"⚠️ Missing expected columns: {missing_cols}")
-
-        stock_info_df = stock_info_df[required_columns]
+        stock_info_df = stock_info_df[1:]
         
-        stock_info_df['Year'] = stock_info_df['Fiscal Quarter'].str.extract(r'(\d{4})').fillna(0).astype(int)
-        stock_info_df['Quarter'] = 'Q' + stock_info_df['Fiscal Quarter'].str.extract(r'(?:Q)?(\d)').fillna(0).astype(int).astype(str)
-        stock_info_df.drop(columns=['Fiscal Quarter'], inplace=True)
+        # Select required columns
+        df = stock_info_df[['Fiscal Quarter', 'Period Ending', 'Revenue', 'Net Income']].copy()
         
+        # Extract Year and Quarter
+        df['Year'] = df['Fiscal Quarter'].str.extract(r'(\d{4})').fillna(0).astype(int)
+        df['Quarter'] = 'Q' + df['Fiscal Quarter'].str.extract(r'(?:Q)?(\d)').fillna(0).astype(int).astype(str)
+        df.drop(columns=['Fiscal Quarter'], inplace=True)
+        
+        # Clean and process 'Period Ending' column
         def clean_date(date_string):
-            if not isinstance(date_string, str):
-                return None
-            if "'" in date_string:
-                date_string = date_string.split("'")[-1]
-            return pd.to_datetime(date_string.strip(), errors='coerce').date()
+            match = re.search(r'([A-Za-z]{3} \d{1,2}, \d{4})', date_string)
+            return match.group(0) if match else date_string
+        df['Period Ending'] = df['Period Ending'].apply(clean_date)
         
-        stock_info_df['Period Ending'] = stock_info_df['Period Ending'].apply(clean_date)
-        stock_info_df = stock_info_df.iloc[:8].reset_index(drop=True)
+        # Select only the first 8 rows and reset index
+        df = df.iloc[:8].reset_index(drop=True)
         
-        return stock_info_df
+        # Convert date format to 'YYYY-MM-DD'
+        df['Period Ending'] = pd.to_datetime(df['Period Ending'], errors='coerce').dt.strftime('%Y-%m-%d')
+        
+        return df
+    
+    except KeyError as e:
+        print(f"KeyError: Missing expected column - {e}")
+        return None
     except Exception as e:
-        logging.error(f"⚠️ Error processing DataFrame: {e}")
+        print(f"An error occurred: {e}")
         return None
     
 #--------------------------- Streamlit UI Design ---------------------------#
 
 st.title("📊 COMPANY FINANCIALS")
 st.write("🔍 This app takes ticker symbol as input and returns the financial info of the company")
-option = st.selectbox("Choose the stock exchange:", ["NASDAQ", "Other"])
+option = st.selectbox("Choose the stock exchange:", ["NASDAQ/NYSE", "Other"])
 st.write("For NASDAQ:- Enter ticker symbol as is (e.g.,TSLA,NVDA)")
 st.write("For other:- stockexchange:ticker symbol (e.g. NSE:TATACONSUM,ETR:BMW ) ")
 ticker_symbol = st.text_input("Enter the ticker symbol:")
@@ -161,7 +172,7 @@ if ticker_symbol:
         stock_info_df = processed_dataframe(stock_info)
         if stock_info_df is not None:
             st.write("✅ Financial Data Successfully Retrieved!")
-            st.write(f"{currency_info.text}")
+            st.write(f"{currency_info.text} Period Ending is in YYYY-MM-DD format.")
             st.dataframe(stock_info_df.style.set_properties(**{'background-color': '#f4f4f4', 'color': '#333', 'border': '1px solid #ddd'}))
         else:
             st.error("❌ Failed to process the financial data.")

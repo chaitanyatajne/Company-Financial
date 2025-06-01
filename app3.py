@@ -4,9 +4,14 @@ from bs4 import BeautifulSoup
 import json
 import pandas as pd
 import logging
+from langchain_ollama.llms import OllamaLLM
+from langchain.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_groq import ChatGroq
 
 # Configure logging
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+#-------------------------------------------------------------------------------------------------------------
 
 def get_stock_financials(stock_url):
     """Fetches the financials table and returns a JSON string where the original
@@ -105,6 +110,124 @@ def processed_dataframe(stock_json,columns):
         logging.error(f"⚠️ Error processing DataFrame: {e}")
         return None
     
+def get_report(df,api_key):
+    llm =ChatGroq(
+       model="meta-llama/llama-4-maverick-17b-128e-instruct",
+       temperature=0.1,
+       api_key=api_key,
+    )
+
+ 
+
+    sysytem_prompt = f'''
+    You are given financial data for a company over the last 8 quarters (e.g., revenue, net income, etc.). Using only this data (no assumptions), generate a clear, professional, and engaging financial narrative report that follows these instructions:
+
+---
+
+### Structure & Content
+
+1. **Executive Summary (100 words exactly)**
+
+   * Summarize key performance trends in revenue and net income.
+   * Use simple analogies (e.g., “Revenue is the fuel driving growth”).
+   * Capture the arc: past performance, challenges, and what it could imply—without predicting.
+   * Present as bullet points or numbered list, totaling exactly 100 words.
+
+2. **Detailed Sections**
+
+   * **Trends & Patterns**
+
+     * Highlight quarter-over-quarter growth, dips, seasonality, or volatility.
+     * Cite specific examples, such as “Q3 revenue dipped 12% after three consecutive quarters of gains.”
+   * **Explanations & Insights**
+
+     * Offer plausible, data-driven reasons for each trend (e.g., “Rising cost of goods sold reduced Q3 net income”).
+     * Clearly label these as observations, not forecasts.
+   * **Hidden/Helpful Insights**
+
+     * Point out margin fluctuations (gross margin, net margin).
+     * Note any cash flow patterns or free cash flow changes.
+     * Identify expense-to-revenue ratios or shifts in operating expenses.
+     * Call attention to one-off events (e.g., “Extra marketing spend in Q2 boosted revenue but squeezed margins”).
+     * Highlight any seasonality (e.g., “Sales traditionally peak in Q4, which held true here”).
+
+
+3. **Optional Enhancements** (only if data supports)
+
+   * **Sentiment Notes**: Mention any visible public or market feedback hints, such as a strong product launch correlating with Q2 revenue.
+   * **What-If Scenarios**: Show simple calculations, for example:
+
+     1. If revenue grows 10% next quarter and margin stays constant, net income would rise by approximately X%.
+     2. Include formula: “New Net Income ≈ Current Net Income × (1 + Revenue Growth)”.
+
+---
+
+### Style & Output Requirements
+
+* Use **plain English** and **professional tone**, but keep language simple.
+* Present all content as **bullet points or numbered lists** rather than paragraphs.
+* Label each section clearly (e.g., “Executive Summary,” “Trends & Patterns,” etc.).
+* If any quarter’s data is missing, insert a bullet saying: “\[QX data not provided].”
+* Never assume or predict beyond the provided eight quarters.
+* End with the note:
+
+  > “Insights are based only on the provided data and do not represent forecasts.”
+
+---
+
+**Example Outline Format (Detailed Mode)**
+
+* **Executive Summary (100 words)**
+
+  1. Company’s revenue grew steadily from Q1 to Q3, acting like “fuel in the tank.”
+  2. In Q4, net income dropped 15% after operating expenses spiked—pausing momentum.
+  3. Gross margin expanded from 25% to 28% between Q2 and Q3, then fell to 22% in Q4.
+  4. Cash flow remained positive all quarters, though free cash flow dipped in Q4.
+  5. Seasonal pattern: Q2 and Q4 are strongest, while Q1 and Q3 lag behind.
+
+* **Trends & Patterns**
+
+  * Q1–Q2 revenue growth: +10%, driven by higher unit sales.
+  * Q3 dip: −12% revenue, possibly due to rising raw material costs.
+  * Q4 bounce: +8% revenue but net income down due to marketing spend.
+
+* **Explanations & Insights**
+
+  * Operating expenses rose 20% in Q3—likely new hiring or R\&D investment.
+  * Gross margin fell in Q4 from 28% to 22%, suggesting price promotions.
+  * Net margin stayed above 10% except Q4 (dropped to 6%).
+
+* **Hidden/Helpful Insights**
+
+  * Cash conversion cycle shortened from 60 days (Q1) to 45 days (Q3).
+  * Free cash flow positive every quarter; peaked in Q2.
+  * R\&D expense ratio increased from 5% (Q1) to 8% (Q4), hinting at future product pipeline.
+  * SG\&A as a percentage of revenue: stable at 12% until Q4’s rise to 15%.
+
+
+* **Optional Enhancements**
+
+  * **Sentiment Notes**: Q2 product launch drove social media buzz, aligning with the 10% revenue jump.
+  * **What-If Scenarios**: If revenue grows 10% in Q5, net income ≈ Current Net Income × 1.10.
+
+* **Disclaimers**
+
+  > Insights are based only on the provided data and do not represent forecasts.
+
+    {df}'''
+
+    prompt_template = PromptTemplate(
+        input_variables=["question"],
+        template=sysytem_prompt + "\n" + "{question}"
+    )
+
+    chain = prompt_template|llm|StrOutputParser()
+
+    result = chain.invoke(
+        {"question":"Generate Report"}
+    )
+    return result
+    
 #--------------------------- Streamlit UI Design ---------------------------#
 
 st.title("📊 COMPANY FINANCIALS")
@@ -113,9 +236,10 @@ option = st.selectbox("Choose the stock exchange:", ["NASDAQ", "Other"])
 st.write("For NASDAQ:- Enter ticker symbol as is (e.g.,TSLA,NVDA)")
 st.write("For other:- stockexchange:ticker symbol (e.g. NSE:TATACONSUM,ETR:BMW ) ")
 ticker_symbol = st.text_input("Enter the ticker symbol:")
+#groq_api_key = st.text_input("Get your Groq API key from https://console.groq.com/home", type="password")
 
 # Check if ticker_symbol is provided
-if ticker_symbol:
+if ticker_symbol: #and groq_api_key:
     if option == "Other":
         if ":" in ticker_symbol:
             # Split the prefix and the rest of the ticker symbol
@@ -141,6 +265,14 @@ if ticker_symbol:
             st.write("✅ Financial Data Successfully Retrieved!")
             st.write(f"{currency_info.text}")
             st.dataframe(stock_info_df.style.set_properties(**{'background-color': '#f4f4f4', 'color': '#333', 'border': '1px solid #ddd'}))
+            st.write("Get your Groq API key from https://console.groq.com/home and Click below button to generate report")
+            groq_api_key = st.text_input("Enter API Key", type="password")
+            if groq_api_key:
+                if st.button("Request Report"):
+                    report = get_report(stock_info_df, groq_api_key)
+                    if report:
+                        st.write("---------- Generated Report ----------")
+                        st.write(report)
         else:
             st.error("❌ Failed to process the financial data.")
     else:

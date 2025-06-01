@@ -4,7 +4,6 @@ from bs4 import BeautifulSoup
 import json
 import pandas as pd
 import logging
-from langchain_ollama.llms import OllamaLLM
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_groq import ChatGroq

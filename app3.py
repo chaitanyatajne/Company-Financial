@@ -119,6 +119,7 @@ def get_report(df,api_key):
  
 
     sysytem_prompt = f'''
+    Consider yourself as a financial analyst with 15 years of experience in analyzing company financials.
     You are given financial data for a company over the last 8 quarters (e.g., revenue, net income, etc.). Using only this data (no assumptions), generate a clear, professional, and engaging financial narrative report that follows these instructions:
 
 ---

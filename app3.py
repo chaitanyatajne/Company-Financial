@@ -215,7 +215,7 @@ def get_report(df,api_key):
 
   > Insights are based only on the provided data and do not represent forecasts.
 
-    {df}'''
+    {df.to_string()}'''
 
     prompt_template = PromptTemplate(
         input_variables=["question"],
@@ -278,5 +278,6 @@ if ticker_symbol: #and groq_api_key:
             st.error("❌ Failed to process the financial data.")
     else:
         st.error("❌ Failed to fetch the financial data.")
+
 
 

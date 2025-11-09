@@ -4,7 +4,8 @@ from bs4 import BeautifulSoup
 import json
 import pandas as pd
 import logging
-from langchain.prompts import PromptTemplate
+# from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_groq import ChatGroq
 
@@ -277,4 +278,5 @@ if ticker_symbol: #and groq_api_key:
             st.error("❌ Failed to process the financial data.")
     else:
         st.error("❌ Failed to fetch the financial data.")
+
 

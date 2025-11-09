@@ -112,7 +112,7 @@ def processed_dataframe(stock_json,columns):
     
 def get_report(df,api_key):
     llm =ChatGroq(
-       model="meta-llama/llama-4-maverick-17b-128e-instruct",
+       model="openai/gpt-oss-120b",
        temperature=0.1,
        api_key=api_key,
     )
@@ -278,6 +278,7 @@ if ticker_symbol: #and groq_api_key:
             st.error("❌ Failed to process the financial data.")
     else:
         st.error("❌ Failed to fetch the financial data.")
+
 
 
 
